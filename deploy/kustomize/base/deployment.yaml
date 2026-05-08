@@ -1,53 +1,53 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: health-app
+    name: health-app
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: health-app
-  template:
-    metadata:
-      labels:
-        app: health-app
-    spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 1001
-        runAsGroup: 1001
-        fsGroup: 1001
-      containers:
-        - name: health-app
-          image: health-app
-          ports:
-            - containerPort: 8080
-          envFrom:
-            - configMapRef:
-                name: health-app-config
-            - secretRef:
-                name: health-app-secrets
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-          volumeMounts:
-            - name: data
-              mountPath: /data
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 10
-            periodSeconds: 30
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: health-app-data
+    replicas: 1
+    selector:
+        matchLabels:
+            app: health-app
+    template:
+        metadata:
+            labels:
+                app: health-app
+        spec:
+            securityContext:
+                runAsNonRoot: true
+                runAsUser: 1001
+                runAsGroup: 1001
+                fsGroup: 1001
+            containers:
+                - name: health-app
+                  image: health-app
+                  ports:
+                      - containerPort: 8080
+                  envFrom:
+                      - configMapRef:
+                            name: health-app-config
+                      - secretRef:
+                            name: health-app-secrets
+                  securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                          drop:
+                              - ALL
+                  volumeMounts:
+                      - name: data
+                        mountPath: /data
+                  livenessProbe:
+                      httpGet:
+                          path: /health
+                          port: 8080
+                      initialDelaySeconds: 10
+                      periodSeconds: 30
+                  readinessProbe:
+                      httpGet:
+                          path: /health
+                          port: 8080
+                      initialDelaySeconds: 5
+                      periodSeconds: 10
+            volumes:
+                - name: data
+                  persistentVolumeClaim:
+                      claimName: health-app-data
