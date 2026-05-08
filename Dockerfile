@@ -19,6 +19,7 @@ COPY --from=builder /install /usr/local
 
 # Copy application source
 COPY main.py .
+COPY app/ ./app/
 
 # Pre-create the data directory with correct ownership
 RUN mkdir -p /data && chown app:app /data

@@ -1,23 +1,40 @@
-import hmac
-import json
 import logging
-import os
-import random
-import urllib.error
-import urllib.parse
-import urllib.request
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from typing import Any, List
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, field_validator
-from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from fastapi import FastAPI
+
+from app.config import APP_TIMEZONE
+from app.database import Base, engine
+from app.routes import router
+from app.scheduler import auto_post_weight
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("health_app")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    tz = ZoneInfo(APP_TIMEZONE)
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        auto_post_weight,
+        CronTrigger(hour=22, minute=0, timezone=tz),
+        id="auto_post_weight",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info("Scheduler started — auto-post runs daily at 22:00 %s", APP_TIMEZONE)
+    yield
+    scheduler.shutdown()
+
+
+app = FastAPI(title="Health App", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.include_router(router)
+
 
 DATABASE_URL = f"sqlite:///{os.environ.get('DB_PATH', '/data/health.db')}"
 API_KEY = os.environ.get("API_KEY", "")
@@ -123,6 +140,23 @@ class WeightRecord(Base):
     )
 
 
+class GripGainsLog(Base):
+    __tablename__ = "gripgains_log"
+
+    id = Column(Integer, primary_key=True, index=True)
+    weight_record_id = Column(Integer, nullable=True)  # null for auto-posts that fail
+    date = Column(String, nullable=False)
+    weight_lbs = Column(Float, nullable=False)
+    source = Column(String, nullable=False)
+    success = Column(Integer, nullable=False)  # 1 = ok, 0 = error
+    response = Column(String, nullable=False)  # JSON or error message
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
+
 Base.metadata.create_all(bind=engine)
 
 
@@ -162,9 +196,27 @@ def _auto_post_weight() -> None:
             return
 
         try:
-            _gripgains_post(today, weight_lbs)
-        except RuntimeError:
+            result = _gripgains_post(today, weight_lbs)
+            log = GripGainsLog(
+                weight_record_id=None,
+                date=today,
+                weight_lbs=weight_lbs,
+                source="auto",
+                success=1,
+                response=json.dumps(result),
+            )
+        except RuntimeError as exc:
             logger.exception("Auto-post: GripGains post failed")
+            log = GripGainsLog(
+                weight_record_id=None,
+                date=today,
+                weight_lbs=weight_lbs,
+                source="auto",
+                success=0,
+                response=str(exc),
+            )
+            db.add(log)
+            db.commit()
             return
 
         record = WeightRecord(
@@ -174,6 +226,9 @@ def _auto_post_weight() -> None:
             source="auto",
         )
         db.add(record)
+        db.flush()
+        log.weight_record_id = record.id
+        db.add(log)
         db.commit()
         logger.info("Auto-post: saved record id=%s", record.id)
     finally:
@@ -276,7 +331,27 @@ def post_weight(
     weight_lbs = _lbs(entry.weight, entry.unit)
     try:
         gripgains_result = _gripgains_post(date_only, weight_lbs)
+        log = GripGainsLog(
+            weight_record_id=record.id,
+            date=date_only,
+            weight_lbs=weight_lbs,
+            source=entry.source,
+            success=1,
+            response=json.dumps(gripgains_result),
+        )
+        db.add(log)
+        db.commit()
     except RuntimeError as exc:
+        log = GripGainsLog(
+            weight_record_id=record.id,
+            date=date_only,
+            weight_lbs=weight_lbs,
+            source=entry.source,
+            success=0,
+            response=str(exc),
+        )
+        db.add(log)
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
@@ -288,3 +363,38 @@ def post_weight(
 @app.get("/api/get/weight", response_model=List[WeightResponse])
 def get_weights(db: Session = Depends(get_db)):
     return db.query(WeightRecord).order_by(WeightRecord.date.desc()).all()
+
+
+class GripGainsLogResponse(BaseModel):
+    id: int
+    weight_record_id: int | None
+    date: str
+    weight_lbs: float
+    source: str
+    success: bool
+    response: Any
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+@app.get("/api/get/gg-log", response_model=List[GripGainsLogResponse])
+def get_gripgains_log(db: Session = Depends(get_db)):
+    rows = db.query(GripGainsLog).order_by(GripGainsLog.created_at.desc()).all()
+    results = []
+    for row in rows:
+        try:
+            parsed = json.loads(row.response)
+        except (json.JSONDecodeError, TypeError):
+            parsed = row.response
+        results.append(GripGainsLogResponse(
+            id=row.id,
+            weight_record_id=row.weight_record_id,
+            date=row.date,
+            weight_lbs=row.weight_lbs,
+            source=row.source,
+            success=bool(row.success),
+            response=parsed,
+            created_at=row.created_at,
+        ))
+    return results
