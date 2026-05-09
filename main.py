@@ -32,5 +32,5 @@ async def lifespan(_app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(title="Health App", docs_url="/api/docs", redoc_url="/api/redoc", lifespan=lifespan)
+app = FastAPI(title="Health App", openapi_url="/api/openapi.json", docs_url="/api/docs", redoc_url="/api/redoc", lifespan=lifespan)
 app.include_router(router, prefix="/api")

@@ -19,9 +19,7 @@ router = APIRouter()
 
 
 @router.get("/health")
-def health_check(
-    _: HTTPAuthorizationCredentials = Depends(verify_token),
-):
+def health_check():
     return {"status": "ok"}
 
 
