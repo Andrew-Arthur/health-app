@@ -12,14 +12,14 @@ from tests.conftest import AUTH
 
 class TestAuth:
     def test_missing_token_returns_401(self, client):
-        assert client.get("/api/health").status_code == 401
+        assert client.get("/api/get/weight").status_code == 401
 
     def test_wrong_token_returns_401(self, client):
-        r = client.get("/api/health", headers={"Authorization": "Bearer wrong"})
+        r = client.get("/api/get/weight", headers={"Authorization": "Bearer wrong"})
         assert r.status_code == 401
 
     def test_valid_token_accepted(self, client):
-        r = client.get("/api/health", headers=AUTH)
+        r = client.get("/api/get/weight", headers=AUTH)
         assert r.status_code == 200
 
 
@@ -28,8 +28,14 @@ class TestAuth:
 # ---------------------------------------------------------------------------
 
 class TestHealth:
-    def test_returns_ok(self, client):
+    def test_returns_ok_unauthenticated(self, client):
+        r = client.get("/api/health")
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok"}
+
+    def test_returns_ok_with_token(self, client):
         r = client.get("/api/health", headers=AUTH)
+        assert r.status_code == 200
         assert r.json() == {"status": "ok"}
 
 
