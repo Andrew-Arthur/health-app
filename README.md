@@ -62,9 +62,9 @@ curl -X POST https://health.andrew-arthur.com/api/post/weight \
 
 ---
 
-### `GET /api/get/gripgains-log`
+### `GET /api/get/gg-log`
 
-Returns all Grip Gains post attempts, newest first. No authentication required.
+Returns all Grip Gains post attempts, newest first. Requires authentication.
 
 **Response `200`**
 
@@ -91,7 +91,7 @@ Returns all Grip Gains post attempts, newest first. No authentication required.
 
 ### `GET /api/get/weight`
 
-Returns all logged weight records, newest first. No authentication required.
+Returns all logged weight records, newest first. Requires authentication.
 
 **Response `200`**
 
@@ -110,9 +110,9 @@ Returns all logged weight records, newest first. No authentication required.
 
 ---
 
-### `GET /health`
+### `GET /api/health`
 
-Liveness probe. Returns `{"status": "ok"}`.
+Liveness probe. Returns `{"status": "ok"}`. Requires authentication.
 
 ---
 
@@ -131,7 +131,7 @@ Every day at 10:00 PM (`APP_TIMEZONE`), if no weight has been recorded for the d
 
 | Variable             | Required | Default                | Description                                |
 | -------------------- | -------- | ---------------------- | ------------------------------------------ |
-| `API_KEY`            | Yes      | —                      | Bearer token for `POST /api/post/weight`   |
+| `API_KEY`            | Yes      | —                      | Bearer token required by all endpoints     |
 | `GRIPGAINS_USERNAME` | Yes      | —                      | Grip Gains login email                     |
 | `GRIPGAINS_PASSWORD` | Yes      | —                      | Grip Gains password                        |
 | `DB_PATH`            | No       | `/data/health.db`      | SQLite database path                       |
