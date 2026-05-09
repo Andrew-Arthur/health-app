@@ -19,11 +19,13 @@ router = APIRouter()
 
 
 @router.get("/health")
-def health_check():
+def health_check(
+    _: HTTPAuthorizationCredentials = Depends(verify_token),
+):
     return {"status": "ok"}
 
 
-@router.post("/api/post/weight", status_code=status.HTTP_201_CREATED)
+@router.post("/post/weight", status_code=status.HTTP_201_CREATED)
 def post_weight(
     entry: WeightEntry,
     db: Session = Depends(get_db),
@@ -41,6 +43,7 @@ def post_weight(
         )
 
     date_only = datetime.fromisoformat(entry.date).strftime("%Y-%m-%d")
+
     weight_lbs = gripgains.lbs(entry.weight, entry.unit)
     try:
         gripgains_result = gripgains.post_weight(date_only, weight_lbs)
@@ -71,13 +74,19 @@ def post_weight(
     return {"id": record.id, "gripgains": gripgains_result}
 
 
-@router.get("/api/get/weight", response_model=List[WeightResponse])
-def get_weights(db: Session = Depends(get_db)):
+@router.get("/get/weight", response_model=List[WeightResponse])
+def get_weights(
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_token),
+):
     return db.query(WeightRecord).order_by(WeightRecord.date.desc()).all()
 
 
-@router.get("/api/get/gg-log", response_model=List[GripGainsLogResponse])
-def get_gripgains_log(db: Session = Depends(get_db)):
+@router.get("/get/gg-log", response_model=List[GripGainsLogResponse])
+def get_gripgains_log(
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_token),
+):
     rows = db.query(GripGainsLog).order_by(GripGainsLog.created_at.desc()).all()
     results = []
     for row in rows:

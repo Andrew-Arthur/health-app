@@ -42,6 +42,15 @@ Content-Type: application/json
 
 `gripgains` contains the raw response body from the Grip Gains API.
 
+**Errors**
+
+| Status | Cause                                                                    |
+| ------ | ------------------------------------------------------------------------ |
+| `401`  | Missing or invalid `API_KEY`                                             |
+| `422`  | Invalid request body (e.g. bad date format)                              |
+| `500`  | GripGains credentials not configured on server                           |
+| `502`  | GripGains upstream returned an error (including duplicate-day rejection) |
+
 **Example**
 
 ```bash
